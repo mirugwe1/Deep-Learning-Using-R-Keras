@@ -1,0 +1,1310 @@
+---
+title: "Neural Networks Assignment "
+author: \textcolor{blue}{ALEX MIRUGWE - MRGALE005}
+date: '`r format(Sys.Date(), "%d-%B-%Y")`'
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+    fig_caption: yes
+    number_sections: yes
+linkcolor: black
+fontsize: 12pt
+header-includes:
+  - \usepackage{titling}
+  - \pretitle{\begin{center}
+  - \posttitle{\end{center}}
+    \includegraphics[width=2in,height=2in]{C:/Users/User/Documents/logo.jpg}\LARGE\\}
+bibliography: cite.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tinytex.verbose = TRUE)
+
+```
+
+\pagebreak
+```{r, echo=FALSE}
+knitr::include_graphics("C:/Users/User/Documents/declaration.jpg")
+```
+
+\tableofcontents
+\pagebreak
+
+\newpage
+
+\listoffigures
+\listoftables
+\newpage
+
+
+
+```{r  echo=FALSE,cache=FALSE, results=FALSE, warning=FALSE, include=FALSE, warning=FALSE}
+#Loading neccessary libraries
+library(keras)
+library(tensorflow)
+```
+
+# Introduction
+
+This assignment involves the use of Keras Tensorflow based R package to build multiple models on regression and classification data.
+
+# Classification Model
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#reading the data
+data_class <- read.csv(url("https://protect-za.mimecast.com/s/LpPuCvgxAZflKY8PtQbJ9P"), header = FALSE, skip = 1) 
+
+#dimensions of the data set
+dim(data_class)
+
+#converting the response variable to categorical
+data_class$V22 <-  as.factor(data_class$V22)
+
+#categorical value composition
+table(data_class$V22)
+(round(prop.table(table(data_class$V22))*100,2))
+#summary of the data
+summary(data_class)
+```
+
+The data set used for classification modeling had 5474 observations and 22 variables. Of the 22 variables, 21 are predictor variables (or input data) and one is a response (or target) variable of five (5) classes 0-to-4 with a value composition shown in the table below.
+
+|0          |1         |2           |3            |4           |
+|-----------|--------  |------      |--------     |---------   |
+|672(12.28%)|542(9.91%)|3478(63.54%)|310(5.66%)   |472(8.62%)  |
+
+Table: Shows the composition of each class of the target variable.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#range of values of the response variables
+range(data_class[1:21])
+```
+
+Values of the 21 input variables were between -1 and 1 meaning that all the inputs were at a comparable range. The original values of the input variables were already in a normalized format and therefore there was no need to scale the values.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#changing to matrix
+data_class <- as.matrix(data_class)
+dimnames(data_class) <- NULL
+
+```
+
+The data frame was converted to matrix format and then split into training, validation, and testing sets. These sets were used as follows;
+
+- Training set. This was used for model training.
+- Validation set. Used to tune the parameters of the model built through period evaluations.
+- Testing set. Used only to assess the performance of a fully-specified model i.e. after training and validation.
+
+Firstly, the data set was split into two sets i.e. training and testing sets in a ratio of 4:1 respectively (80% of the data for training and 20% for testing). Then after the training set was split to obtain a validation set. This validation set was just 20% of the training set. 
+
+The training set had 3594 observations and 21 input variables, validation set was made of 792 observations and the same features as the training set. And finally, the test set was of 1088 observations with 21 variables inputs.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#data spliting 
+set.seed(123)
+
+index <- sample(2,nrow(data_class),replace = T, prob = c(0.8,0.2))
+#traing set
+train_set <- data_class[index == 1,1:22]
+
+#input values of the test set
+test_set_x <- data_class[index == 2, 1:21]
+#target variable of the test set
+test_set_y <- data_class[index == 2, 22]
+
+#spliting the train set to form a validation set
+set.seed(123)
+train_index <- sample(2,nrow(train_set),replace = T, prob = c(0.9,0.2))
+
+#input variables of the train set
+train_set_x <- train_set[train_index == 1, 1:21]
+#target variable of the train set
+train_set_y <- train_set[train_index == 1, 22]
+
+#input values of the validation set
+valid_set_x <- train_set[train_index == 2, 1:21]
+#target variable of the validation set
+valid_set_y <- train_set[train_index == 2, 22]
+
+#dimesions
+dim(train_set_x)
+dim(valid_set_x)
+dim(test_set_x)
+
+trainlabels <- train_set_y
+validlabels <- valid_set_y
+testlabels <- test_set_y
+```
+
+Before fitting the models, the target variable of the train, validation, and test sets was converted into a 5-binary (0s and 1s) bit format through one-hot encoding. The numbers (5 classes ) i.e. 0,1,2,3, and 4 of the target variable were converted from numbers to binary as shown in the table below;
+
+|0  |1  |2  |3  |4  |
+|---|---|---|---|---|
+|1  |0  |0  |0  |0  |
+|0  |1  |0  |0  |0  |
+|0  |0  |1  |0  |0  |
+|0  |0  |0  |1  |0  |
+|0  |0  |0  |0  |1  |
+
+Table: Shows the binary representation of the 5-classes for the target variable converted using one-hot encoding.
+
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Convert targets to their one-hot encoded equivalent
+train_set_y <- to_categorical(train_set_y, 5)
+valid_set_y <- to_categorical(valid_set_y, 5)
+test_set_y <- to_categorical(test_set_y, 5)
+```
+
+## Modeling
+
+Through adjusting hyperparameters, several models were built and findings are presented below.
+
+Firstly we built a single hidden layer model of 64 units and *relu* activation function in the hidden layer. The input layer had 21 units because of the 21 input variables. We used a *softmax* activation function in the output layer and this is because we had multi-classes to be classified. The softmax activation function is the preferred function for multi-class classification.
+
+The initial model was then compiled with the *adam* optimizer, learning rate of 000001, and *categorical cross-entropy* loss function because we had more than two levels in the target variable.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#========================== ONE LAYERS ==========================
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_1 <- keras_model_sequential()
+
+class_model_1 %>%
+    layer_dense(units = 64, activation = 'relu', input_shape = c(21)) %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling a model
+class_model_1 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+#summary of the model
+summary(class_model_1)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history <- class_model_1 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 100, batch_size =10, 
+  validation_split = 0.2, shuffle = TRUE
+ )
+
+```
+
+```{r  echo=FALSE,eval=FALSE, warning=FALSE,fig.cap=" Plot shows accuracy and loss with respect to 100-epochs with a single hidden layer having 64 nodes with a softmax activation in the output layer."}
+#ploting a model
+plot(history)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model on the train set
+class_model_1 %>% evaluate(train_set_x, train_set_y)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#predicting on the train set 
+model_1_train_pred <- class_model_1 %>% predict_classes(train_set_x)
+
+#confusion matrix
+table(Predicted = model_1_train_pred, Actual = trainlabels)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model on the validation set
+class_model_1 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_1_valid_pred <- class_model_1 %>% predict_classes(valid_set_x)
+
+#confusion matrix
+table(Predicted = model_1_valid_pred, Actual = validlabels)
+```
+
+This model was trained for 100-epochs (i.e. 100 iterations), and batch size (number of samples to be propagated) of 10. It was evaluated against both the train and validation sets and the performance was not quite good. A classification accuracies of **64.88%** and **66.27%** were produced on training and validation sets respectively. The model had a loss of 1.212 when evaluated against the train set and 1.198 with the validation set.
+
+\begin{table}[!hbt]
+\begin{minipage}[c]{0.4\linewidth}
+\centering
+\caption{Confusion matrix of the model against the train set(Single Layer).}
+\begin{tabular}{ |c|c|c|c|c|c| } 
+ \hline
+           & \multicolumn{5}{|c|}{Actual} \\
+ \hline
+Predicted & 0  & 1 & 2 & 3 & 4  \\ 
+ \hline
+ 0        & 52 & 6 & 0 & 5 & 0 \\ 
+ \hline
+ 1       & 4  & 5 & 0 & 14 & 0\\ 
+ \hline
+ 2       & 423   & 397 & 2496 & 188 & 347\\
+\hline
+ 3       & 0  & 0 & 0 & 15 & 0\\ 
+ \hline
+ 4       & 2   & 0 & 0 & 4 & 0\\
+\hline
+\end{tabular}
+\end{minipage}\hfill
+%
+\begin{minipage}[c]{0.4\linewidth}
+\centering
+\caption{Confusion matrix of the model against the validation set(Single Layer).}
+\begin{tabular}{ |c|c|c|c|c|c| } 
+ \hline
+           & \multicolumn{5}{|c|}{Actual} \\
+ \hline
+Predicted & 0  & 1 & 2 & 3 & 4   \\ 
+ \hline
+ 0        & 10 & 0 & 0 & 0 & 0 \\ 
+ \hline
+ 1       & 0   & 0 & 0 & 4 & 0\\ 
+\hline
+2       & 42   & 38 & 277 & 27 & 28\\
+\hline
+3       & 0   & 0 & 0 & 0 & 0\\ 
+\hline
+4       & 0   & 0 & 0 & 2 & 0\\
+\hline
+\end{tabular}
+\end{minipage}
+\end{table}
+
+The model performed very well at classifying classes 0, 1, and 2 as seen from the tables above but it did not perform on classifying 3 and 4. 
+
+## Model tuning
+
+Several adjustments were done to the previous model in an attempt to improve its performance and these included adding new layers, adjusting nodes and epochs, adding batch normalization, adding dropout, adding weight regularization, and adjusting learning rate.
+
+### Adding layers and Adjusting Nodes.
+
+The number of hidden layers and nodes were adjusted and their effect on the performance of the model is presented in the table below.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+dnim <- dim(train_set_x)[2]
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_2 <- keras_model_sequential()
+
+class_model_2 %>%
+    layer_dense(units = 256, activation = 'relu', input_shape = dnim) %>%
+    layer_dense(units = 128, activation = 'relu') %>%
+    layer_dense(units = 64, activation = 'relu') %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling the model
+class_model_2 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+#summary of themodel
+summary(class_model_2)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history_2 <- class_model_2 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 100, batch_size = 25, 
+  validation_split = 0.2, shuffle = TRUE
+ )
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the train set
+class_model_2 %>% evaluate(train_set_x, train_set_y)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the validation set
+class_model_2 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_1_valid_pred1 <- class_model_2 %>% predict_classes(valid_set_x)
+#confusion matrix
+table(Predicted = model_1_valid_pred1, Actual = validlabels)
+```
+
+|No. of layers|No. of nodes    |Loss      |Accuracy(%)|
+|-------------|----------------|----------|-----------|
+|1            |16              |1.443     |62.85      |
+|             |64              |1.212     |66.27      |
+|             |256             |0.802     |74.89      |
+|             |                |          |           |
+|2            |16,8            |1.542     |72.43      |
+|             |64,32           |0.988     |76.64      |
+|             |256,128         |0.651     |76.87      |
+|             |                |          |           |
+|3            |16,8,4          |1.540     |71.03      |
+|             |64,32,16        |1.319     |79.44      |
+|             |256,128,64      |0.725     |82.71      |
+
+Table: Shows the performance of the model with different number of layers and nodes evaluated against the validation set.
+
+Looking at the table above, increasing the number of layers and nodes improved the performance of the model. The best performing model was the one with three hidden layers of 256, 128, 64 nodes which correctly classified **82.71%** of the target values.
+
+### Adjusting Epochs
+
+We adjusted the epochs value from the 100 which was used in the previous best model to a number of random lower and larger values. All values below 100 were producing a smaller classification accuracy and large loss values. An improvement in the model's performance was realized when the epochs parameter was increased to 300. The model produced a classification accuracy rate of **84.59%** (with a loss of 0.838) and **84.81%** (loss = 0.820) when evaluated against the train and validation sets respectively.
+  
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_3 <- keras_model_sequential()
+
+class_model_3 %>%
+    layer_dense(units = 256, activation = 'relu', input_shape = dnim) %>%
+    layer_dense(units = 128, activation = 'relu') %>%
+    layer_dense(units = 64, activation = 'relu') %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling the model
+class_model_3 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+#summary of the model
+summary(class_model_3)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history_3 <- class_model_3 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 300, batch_size = 25, 
+  validation_split = 0.2, shuffle = TRUE,
+  callbacks = list(callback_early_stopping(patience = 100))
+ )
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the train set
+class_model_3 %>% evaluate(train_set_x, train_set_y)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the validation set
+class_model_3 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_3_valid_pred1 <- class_model_3 %>% predict_classes(valid_set_x)
+#confusion matrix
+table(Predicted = model_3_valid_pred1, Actual = validlabels)
+```
+
+Batch normalization is used so that the distribution of the inputs (and these inputs are literally the result of an activation function) to a specific layer doesn't change over time due to parameter updates from each batch (or at least, allows it to change in an advantageous way). It uses batch statistics to do the normalizing, and then uses the batch normalization parameters (gamma and beta in the original paper) "to make sure that the transformation inserted in the network can represent the identity transform" (quote from the original paper).
+
+### Adding Batch Normalization
+
+In our struggle to continue improving the performance of the model, we added a batch normalization function to every after a hidden layer in our three hidden layer model with 256, 128, 64 nodes, and 300 epochs parameter value. Batch Normalization [@Abhijit_2019] is used so that the distribution of the inputs to a specific layer doesn't change over time due to parameter updates from each batch (or at least, allows it to change in an advantageous way). 
+
+Adding the batch normalization slightly improved the performance of the model as shown in the table below.
+
+
+
+\begin{table}[!hbt]
+\centering
+\caption{The performance of model when evaluated against the train and validation sets.}
+\begin{tabular}{ |c|c|c| } 
+ \hline
+          & Train set  & Validation set    \\ 
+ \hline
+ Accuracy   & 82.55 & 85.75 \\ 
+ \hline
+ Loss       & 0.710 & 0.714 \\ 
+\hline
+\end{tabular}
+\end{table}
+
+
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_4 <- keras_model_sequential()
+
+class_model_4 %>%
+    layer_dense(units = 256, activation = 'relu', input_shape = dnim) %>%
+    #adding batch normalization to layer 1
+    layer_batch_normalization() %>%
+    layer_dense(units = 128, activation = 'relu') %>%
+    #adding batch normalization to layer 2
+    layer_batch_normalization() %>%
+    layer_dense(units = 64, activation = 'relu') %>%
+    #adding batch normalization to layer 3
+    layer_batch_normalization() %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling the model
+class_model_4 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+#summary of the model
+summary(class_model_4)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history_4 <- class_model_4 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 300, batch_size = 25, 
+  validation_split = 0.2, shuffle = TRUE,
+  callbacks = list(callback_early_stopping(patience = 100))
+ )
+```
+
+```{r  echo=FALSE, warning=FALSE,eval=FALSE,fig.cap=" Plot shows accuracy and loss with respect to 100-epochs with a two hidden layers having 50 and 25 nodes with a softmax activation in the output layer."}
+#ploting a model
+plot(history_4)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the train set
+class_model_4 %>% evaluate(train_set_x, train_set_y)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the validation set
+class_model_4 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_4_valid_pred1 <- class_model_4 %>% predict_classes(valid_set_x)
+#confusion matrix
+table(Predicted = model_4_valid_pred1, Actual = validlabels)
+```
+
+### Adding Dropout
+
+Dropout regularization values of 0.4, 0.3, 0.2 were added to the batch normalized model in another attempt of improving the model's performance furthermore. Dropout regularization helps in reducing overfitting and also improves the generalization of the neural model network.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_5 <- keras_model_sequential()
+
+class_model_5 %>%
+    layer_dense(units = 256, activation = 'relu', input_shape = dnim) %>%
+    #adding batch normalization to layer 1
+    layer_batch_normalization() %>%
+    #dropout layer to layer 1
+    layer_dropout(rate = 0.4) %>%
+    layer_dense(units = 128, activation = 'relu') %>%
+    #adding batch normalization to layer 2
+    layer_batch_normalization() %>%
+    #dropout layer to layer 2
+    layer_dropout(rate = 0.3) %>%
+    layer_dense(units = 64, activation = 'relu') %>%
+    #adding batch normalization to layer 3
+    layer_batch_normalization() %>%
+    #dropout layer to layer 1
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling the model
+class_model_5 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+#summary of the model
+summary(class_model_5)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history_5 <- class_model_5 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 300, batch_size = 25, 
+  validation_split = 0.2, shuffle = TRUE,
+  callbacks = list(callback_early_stopping(patience = 100))
+ )
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the train set
+class_model_5 %>% evaluate(train_set_x, train_set_y)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the validation set
+class_model_5 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_5_valid_pred1 <- class_model_5 %>% predict_classes(valid_set_x)
+#confusion matrix
+table(Predicted = model_5_valid_pred1, Actual = validlabels)
+```
+
+The loss and accuracy of the model with three hidden layers of 256, 128, 64 nodes, batch normalization, and dropout regularization is 0.612 and 85.04% when it was against the validation set.
+
+### Adding Weight Regularization
+
+Like the dropout regularization, weight regularization also helps in reducing the risk of overfitting of a neural network model on the training data and eventually improving the performance of the model on new data. Therefore, we applied regularization penalties L$_1$ and L$_2$ on every layer in the model. The parameter weight regularization added was 0.001.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#model building
+set.seed(123)
+# Initialize the sequential model
+class_model_6 <- keras_model_sequential()
+
+class_model_6 %>%
+    layer_dense(units = 256, activation = 'relu', input_shape = dnim,
+                #adding weight regularization to layer 1
+                kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 1
+    layer_batch_normalization() %>%
+    layer_dropout(rate = 0.4) %>%
+  #adding dropout to layer 1
+    layer_dense(units = 128, activation = 'relu',
+                #adding weight regularization to layer 2
+                kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 2
+    layer_batch_normalization() %>%
+  #adding dropout to layer 2
+    layer_dropout(rate = 0.3) %>%
+    layer_dense(units = 64, activation = 'relu',
+                #adding weight regularization to layer 3
+                kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 1
+    layer_batch_normalization() %>%
+  #adding dropout to layer 3
+    layer_dropout(rate = 0.2) %>%
+    layer_dense(units = 5, activation = 'softmax') 
+
+#compiling the model
+class_model_6 %>%
+    compile(
+      optimizer = optimizer_adam(lr = 0.000001),
+      loss = 'categorical_crossentropy',
+      metrics = c('accuracy')
+      )
+
+
+summary(class_model_6)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#training a model
+history_6 <- class_model_6 %>% fit(
+  train_set_x, train_set_y, 
+  epochs = 300, batch_size = 25, 
+  validation_split = 0.2, shuffle = TRUE,
+  callbacks = list(callback_early_stopping(patience = 100))
+ )
+
+summary(history_6)
+```
+
+
+\begin{table}[!hbt]
+\centering
+\caption{Shows the loss and accuracy of the model, batch normalization, dropout regularization, and parameter weight regularization of 0.001.}
+\begin{tabular}{ |c|c| } 
+ \hline
+ Accuracy            & 0.8318 \\ 
+ \hline
+ Loss                & 0.5901 \\ 
+ \hline
+ Validation accuracy & 0.8316\\ 
+\hline
+Validation loss      & 0.9851\\ 
+\hline
+\end{tabular}
+\end{table}
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the train set
+class_model_6 %>% evaluate(train_set_x, train_set_y)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#Evaluation of the model against the validation set
+class_model_6 %>% evaluate(valid_set_x, valid_set_y)
+
+#predicting on the validation set 
+model_6_valid_pred1 <- class_model_6 %>% predict_classes(valid_set_x)
+#confusion matrix
+table(Predicted = model_6_valid_pred1, Actual = validlabels)
+```
+
+Adding parameter weight regularization slightly improved the performance of the model as the classification accuracy increased 85.55% against the validation set.
+
+### Adjusting Learning Rate and changing optimizers
+
+Adjusting the learning rate and also changing the optimizer from adam to RMSProp and adagrad did not improve the performance of the model because when evaluated on the validation set, the classification accuracy dropped. And therefore, adam optimizer was maintained in the final model.
+
+### Conclusion
+
+The final model had three hidden layers of 256, 128, 64  nodes, with batch normalization, weight regularization parameters of 0.001, and dropout parameter values of 0.4, 0.3, 0.1. The model accurately classified 85.55% of the target values in the validation set.
+
+## Prediction.
+
+The final model was finally assessed on the test set and its performance is shown in the confusion matrix below.
+
+
+\begin{table}[!hbt]
+\centering
+\caption{Confusion matrix of the model against the test set.}
+\begin{tabular}{ |c|c|c|c|c|c| } 
+ \hline
+           & \multicolumn{5}{|c|}{Actual} \\
+ \hline
+Predicted & 0  & 1 & 2 & 3 & 4  \\ 
+ \hline
+ 0        & 133 & 0 & 0 & 0 & 35 \\ 
+ \hline
+ 1       & 6  & 96 & 1 & 38 & 40\\ 
+ \hline
+ 2       & 0   & 0 & 704 & 5 & 0\\
+\hline
+ 3       & 0  & 0 & 0 & 8 & 1\\ 
+ \hline
+ 4       & 0   & 0 & 0 & 0 & 21\\
+\hline
+\end{tabular}
+\end{table}
+
+When evaluated against the test set, the model correctly classified **85.94%** of the values with a loss of **0.828**. The model was used for prediction and a sample of the predicted against the actual values is shown in the table below.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+class_model_6 %>% evaluate(test_set_x, test_set_y)
+
+#predicting on the validation set 
+model_1_valid_pred <- class_model_6 %>% predict_classes(test_set_x)
+
+#confusion matrix
+d <- table(Predicted = model_1_valid_pred, Actual = testlabels)
+
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#creating a data frame of predicted values
+Predicted <- model_1_valid_pred
+#data frame of actual target values of the test set
+Actual <- testlabels
+#data frame of both predicted and actual values
+Final_pred <- cbind(Predicted,Actual)
+#head of the data frame
+head(Final_pred,10)
+
+```
+
+\newpage
+
+|Predicted|Actual|
+|---------|------|
+|0        |0     |
+|0        |0     |
+|0        |0     |
+|0        |0     |
+|0        |0     |
+|1        |0     |
+|0        |0     |
+|1        |0     |
+|0        |0     |
+|0        |0     |
+
+Table: Shows ten values predicted by the final model and actual values. 
+
+\newpage
+
+# Regression Model
+
+The data set used for regression modeling had 1030 observations, 8 input variables, and a single predictor (or target) variable.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#reading a regression data frame
+data_red <- read.csv(url("https://protect-za.mimecast.com/s/vYKICAnX51iR2wOPiM4hPa"), header = TRUE)
+
+#data frame dimensions
+dim(data_red)
+#summary of the data
+summary(data_red)
+```
+
+The input variables were scaled (or normalized ) since some variables had very large input values. Differences in the scales across input variables may increase the difficulty of the problem being modeled. An example of this is that large input values can result in a model that learns large weight values. A model with large weight values is often unstable, meaning that it may suffer from poor performance during learning and sensitivity to input values resulting in higher generalization error [@machinelearningmastery-data_61202].
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#changing to matrix
+data_red <- as.matrix(data_red)
+dimnames(data_red) <- NULL
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#scaling the input values
+data_red[,1:8] <- scale(data_red[,1:8])
+```
+
+After normalizing the input variables of the data set, it was split into three data frames i.e. train, validation, and test sets. Firstly, the data frame was split into train and test sets in a ratio of 4:1 (80% train test and 20% test set). Then validation set was split from the train set and it was 20% of it.
+
+And like in classification modeling, even in regression modeling train set was used in building models, the validation set was for tuning parameters of the model built through period evaluations, and the test set for overall model assessment.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#data spliting 
+set.seed(123)
+
+indexR <- sample(2,nrow(data_red),replace = T, prob = c(0.8,0.2))
+#traing set
+trainR_set <- data_red[indexR == 1,1:9]
+
+#input values of the test set
+testR_set_x <- data_red[indexR == 2, 1:8]
+#target variable of the test set
+testR_set_y <- data_red[indexR == 2, 9]
+
+#spliting the train set to form a validation set
+set.seed(123)
+trainR_index <- sample(2,nrow(trainR_set),replace = T, prob = c(0.9,0.2))
+
+#input variables of the train set
+trainR_set_x <- trainR_set[trainR_index == 1, 1:8]
+#target variable of the train set
+trainR_set_y <- trainR_set[trainR_index == 1, 9]
+
+#input values of the validation set
+validR_set_x <- trainR_set[trainR_index == 2, 1:8]
+#target variable of the validation set
+validR_set_y <- trainR_set[trainR_index == 2, 9]
+
+#dimesions
+dim(trainR_set_x)
+dim(validR_set_x)
+dim(testR_set_x)
+```
+
+## Modeling
+
+To get the best performing model i.e. one with the lowest Mean Absolute Error (MAE), several models of different parameters were fitted. Mean Absolute Error was the metric used to evaluate these models. Firstly, we fitted a model with a single hidden layer of 64-nodes, 8 input nodes because of the eight input variables and *linear* activation function in the output layer of a single node. The was also fitted for *100 epochs*, recording training and validation accuracy.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+set.seed(123)
+ndim <- dim(testR_set_x)[2]
+#initializing the model
+reg_model_1 = keras_model_sequential() %>% 
+   layer_dense(units= 64, activation="relu", input_shape=ndim) %>% 
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_1 %>% compile(
+   loss = "mse",
+   optimizer =  "adam", 
+   metrics = list("mean_absolute_error")
+ )
+ 
+reg_model_1 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#fiting the model
+history.1 <- reg_model_1 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 100,verbose = 0,
+                    batch_size = 10,
+                    validation_split = 0.2)
+#summary of the model 
+print(history.1)
+```
+
+
+```{r  echo=FALSE,fig.height=2,fig.width=6, warning=FALSE ,fig.cap="Plot of loss and mean absolute loss with respect to epochs using a model with a single hidden layer of 64 nodes."}
+#ploting the model summary histroy
+plot(history.1)
+
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#evalauting the model against the train set
+scores = reg_model_1 %>% evaluate(trainR_set_x, trainR_set_y, verbose = 0)
+print(scores)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#evaluating the model against validation set
+scores = reg_model_1 %>% evaluate(validR_set_x, validR_set_y, verbose = 0)
+print(scores)
+```
+
+\newpage
+
+```{r  echo=FALSE,warning=FALSE,fig.height=4,fig.width=6, fig.cap="Plots show the model's predicted values with the actual values of train and validation sets."}
+#predicting the target values of the train set
+reg_model_1_pred = reg_model_1 %>% predict(trainR_set_x)
+reg_axes = seq(1:length(reg_model_1_pred))
+par(mfrow=c(1,2))
+#plot the predicted with the actual values
+ plot(reg_axes, trainR_set_y, type="l", col="red",ylab="Train set target variable",
+       main = "Actual against Predicted \n values of the train set")
+lines(reg_axes, reg_model_1_pred, col="blue")
+legend("topleft", legend=c("Actual", "Predicted"),
+        col=c("red", "blue"), lty=1,cex=0.8)
+
+#predicting the target values of the validation set
+reg_model_2_pred = reg_model_1 %>% predict(validR_set_x)
+
+reg_axes_1 = seq(1:length(reg_model_2_pred))
+#plot the predicted values with actual values
+ plot(reg_axes_1, validR_set_y, type="l", col="red",ylab="Validation set target variable",
+      main = "Actual against Predicted \n values of the validation set")
+lines(reg_axes_1, reg_model_2_pred, col="blue")
+legend("topleft", legend=c("Actual", "Predicted"),
+        col=c("red", "blue"), lty=1,cex=0.8)
+
+
+```
+
+
+
+\begin{table}[!hbt]
+\centering
+\caption{The performance of model when evaluated against train and validation sets.}
+\begin{tabular}{ |c|c|c| } 
+ \hline
+          & Train set  & Validation set    \\ 
+ \hline
+ MAE        & 5.319 & 5.071 \\ 
+ \hline
+ Loss       & 50.461 & 45.747 \\ 
+\hline
+\end{tabular}
+\end{table}
+
+The model had a mean absolute error (MAE) of *5.319* and loss of *50.461* when it was evaluated against the train set and a MAE of *5.071* and loss of *45.747*. The model performed relatively better on the validation set than it did on the train set, and therefore we say there is no model overfitting.
+
+
+
+## Model tuning
+
+Hyperparameters of the previous model were adjusted in an attempt to improve its performance and these include adding new layers, adjusting nodes and epochs, adding batch normalization, adding dropout, adding weight regularization, and adjusting learning rate.
+
+### Adding layers and Adjusting nodes.
+
+We fitted several models with different number of layers and nodes. These models were evaluated against both train and validation sets, and their mean absolute errors and losses were recorded in the table below.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+set.seed(123)
+#initializing the model
+reg_model_3 = keras_model_sequential() %>% 
+   layer_dense(units= 16, activation="relu", input_shape=ndim) %>% 
+   #layer_dense(units= 8, activation="relu") %>%
+   #layer_dense(units= 4, activation="relu") %>%
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_3 %>% compile(
+   loss = "mse",
+   optimizer =  "adam", 
+   metrics = list("mean_absolute_error")
+ )
+ #summary of the model
+reg_model_3 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#fitting the model
+history.3 <- reg_model_3 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 100,verbose = 0,
+                    batch_size = 10,
+                    validation_split = 0.2)
+ #ploting the model summary histroy
+plot(history.3)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the train set
+scores_2 = reg_model_3 %>% evaluate(trainR_set_x, trainR_set_y)
+print(scores_2)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the validation set
+scores_2 = reg_model_3 %>% evaluate(validR_set_x, validR_set_y)
+print(scores_2)
+```
+
+ |          |hidden layers|No.nodes    |MAE   |loss  |
+ |----------|-------------|------------|------|------|
+ |Train set |1            |16          |7.087 |84.695|
+ |Validation|             |            |6.818 |76.292|
+ |          |             |            |      |      |
+ |Train set |1            |64          |5.319 |50.461|
+ |Validation|             |            |5.071 |45.747|
+ |          |             |            |      |      |
+ |Train set |1            |256         |4.611 |37.826|
+ |Validation|             |            |4.453 |35.214|
+ |          |             |            |      |      |
+ |Train set |2            |16,8        |8.093 |103.32|
+ |Validation|             |            |7.831 |88.375|
+ |          |             |            |      |      |
+ |Train set |2            |64,32       |4.350 |33.397|
+ |Validation|             |            |4.858 |40.430|
+ |          |             |            |      |      |
+ |Train set |2            |256,128     |3.749 |27.467|
+ |Validation|             |            |3.817 |26.209|
+ |          |             |            |      |      |
+ |Train set |3            |16,8,4      |5.577 |53.631|
+ |Validation|             |            |5.475 |52.394|
+ |          |             |            |      |      |
+ |Train set |3            |64,32,16    |3.669 |27.035|
+ |Validation|             |            |3.824 |29.135|
+ |          |             |            |      |      |
+ |Train set |3            |256,128,64  |3.541 |24.106|
+ |Validation|             |            |3.587 |24.570|
+ 
+Table: Shows the performance of the model built using different number of layers and nodes.
+ 
+ Looking at the table above, the models with 2 and 3 hidden layers with 256,128 and 256,128,64 nodes respectively had the best performance.
+ 
+### Adding Batch Normalization 
+
+ In our best performing model that is one with 3 hidden layers of 256,128,64 nodes, we added a batch normalization using the *layer_batch_normalization()* function which was included after each hidden layer within the network.  Batch normalization [@bradleyboehmke_2020] adaptively normalizes data even as the mean and variance change over time during training. It also helps with gradient propagation, which at the end allows for deeper networks. And as the depth of the network model increases, batch normalization becomes more important and can improve performance.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+set.seed(123)
+#initializing the model
+reg_model_4 = keras_model_sequential() %>% 
+   layer_dense(units= 256, activation="relu", input_shape=ndim) %>%
+  #adding batch normalization to layer 1
+   layer_batch_normalization() %>%
+   layer_dense(units= 128, activation="relu") %>%
+  #adding batch normalization to layer 3
+   layer_batch_normalization() %>%
+   layer_dense(units= 64, activation="relu") %>%
+  #adding batch normalization to layer 3
+   layer_batch_normalization() %>%
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_4 %>% compile(
+   loss = "mse",
+   optimizer =  "adam", 
+   metrics = list("mean_absolute_error")
+ )
+ #summary of the model
+reg_model_4 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#fitting the model 
+history.4 <- reg_model_4 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 200,verbose = 0,
+                    batch_size = 20,
+                    validation_split = 0.2)
+
+```
+
+```{r  echo=FALSE, warning=FALSE ,fig.height=4,fig.width=6,fig.cap="Plot of loss and mean absolute loss with respect to epochs using a model with three hidden layers have 256, 128, and 64 nodes. Adding batch normalization, helped in minimizing the validation loss sooner."}
+#ploting the model summary histroy
+plot(history.4)
+```
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the train set
+scores_4 = reg_model_4 %>% evaluate(trainR_set_x, trainR_set_y)
+print(scores_4)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against validation set
+scores_4 = reg_model_4 %>% evaluate(validR_set_x, validR_set_y)
+print(scores_4)
+```
+
+And batch normalization greatly improved the performance of our model by reducing the MAE and loss. The MAE dropped from the initial  3.541 value to 3.013 when a model was evaluated against the train set, and it reduced from 3.587 to 3.329 for the validation set. The loss also reduced from 24.106 to 20.780 and 24.750 to 21.789 for the train and validation sets respectively.
+
+This performance was achieved after increasing the epochs to 200 and batch size to 20. And these values were used throughout the rest of the modeling. 
+
+
+### Adding Weight Regularization
+
+Sometimes having many hidden layer nodes may result in a risk of model overparameterization, and therefore we added L$_1$ and L$_2$ penalties to our model. These penalties impacted positively the performance of the model.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+set.seed(123)
+#initializing the model
+reg_model_5 = keras_model_sequential() %>% 
+   layer_dense(units= 256, activation="relu", input_shape=ndim,
+               #adding weight regulariztion L1 and L2 to layer 1
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 1
+   layer_batch_normalization() %>%
+   layer_dense(units= 128, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 2
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 2
+   layer_batch_normalization() %>%
+   layer_dense(units= 64, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 3
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 3
+   layer_batch_normalization() %>%
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_5 %>% compile(
+   loss = "mse",
+   optimizer =  "adam", 
+   metrics = list("mean_absolute_error")
+ )
+ 
+reg_model_5 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#building the model
+history.5 <- reg_model_5 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 200,verbose = 0,
+                    batch_size = 20,
+                    validation_split = 0.2)
+#ploting the model summary histroy
+plot(history.5)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the train set
+scores_5 = reg_model_5 %>% evaluate(trainR_set_x, trainR_set_y)
+print(scores_5)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the validation set
+scores_5 = reg_model_5 %>% evaluate(validR_set_x, validR_set_y)
+print(scores_5)
+```
+
+After adding regularization penalties to the model, the mean absolute error continued to drop when the model was evaluated against both train and validation sets.
+
+\begin{table}[!hbt]
+\centering
+\caption{The performance of model with a reguralization penalties.}
+\begin{tabular}{ |c|c|c| } 
+ \hline
+          & Train set  & Validation set    \\ 
+ \hline
+ MAE        & 2.560 & 3.234 \\ 
+ \hline
+ Loss       & 18.634 & 21.233 \\ 
+\hline
+\end{tabular}
+\end{table}
+
+### Adding  Dropout & Adjusting Learning Rate
+
+Adding dropout and adjusting the learning rates to the model did not improve its performance as the MAE and loss just increased.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+set.seed(123)
+#initializing the model
+reg_model_6 = keras_model_sequential() %>% 
+   layer_dense(units= 256, activation="relu", input_shape=ndim,
+               #adding weight regulariztion L1 and L2 to layer 1
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization layer 1
+   layer_batch_normalization() %>%
+  #adding dropout to layer 1
+   layer_dropout(rate = 0.4) %>%
+   layer_dense(units= 128, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 2
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+   #adding batch normalization layer 2
+   layer_batch_normalization() %>%
+   layer_dropout(rate = 0.3) %>%
+  #adding dropout to layer 1
+   layer_dense(units= 64, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 3
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+   #adding batch normalization layer 3
+   layer_batch_normalization() %>%
+  #adding dropout to layer 1
+   layer_dropout(rate = 0.2) %>%
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_6 %>% compile(
+   loss = "mse",
+   optimizer =  "adam", 
+   metrics = list("mean_absolute_error")
+ )
+ 
+reg_model_6 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#building the model
+history.6 <- reg_model_6 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 200,verbose = 0,
+                    batch_size = 20,
+                    validation_split = 0.2,
+                    callbacks = list(
+                    callback_early_stopping(patience = 100),
+                      callback_reduce_lr_on_plateau()
+                   ))
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the train set
+scores_6 = reg_model_6 %>% evaluate(trainR_set_x, trainR_set_y)
+print(scores_6)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE,eval=FALSE}
+#evaluating the model against the validation set
+scores_6 = reg_model_6 %>% evaluate(validR_set_x, validR_set_y)
+print(scores_6)
+```
+
+### Changing optimizers
+
+In an effort to continue improving the performance of the model, we changed the optimizer from *Adam* to *RMSProp* and *Adagrad*. Changing the optimizer to RMSProp did not improve the performance of the model any better. The MAE and loss values were slightly higher than those obtained using Adam. Even Adagrad optimizer did not improve the performance.
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+set.seed(123)
+#initializing the model
+reg_model_7 = keras_model_sequential() %>% 
+   layer_dense(units= 256, activation="relu", input_shape=ndim,
+  #adding weight regulariztion L1 and L2 to layer 1
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+  #adding batch normalization to layer 1
+   layer_batch_normalization() %>%
+   layer_dense(units= 128, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 2
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+    #adding batch normalization to layer 2
+   layer_batch_normalization() %>%
+   layer_dense(units= 64, activation="relu",
+               #adding weight regulariztion L1 and L2 to layer 3
+               kernel_regularizer = regularizer_l2(0.001)) %>%
+    #adding batch normalization to layer 3
+   layer_batch_normalization() %>%
+   layer_dense(units=1, activation="linear")
+
+#compiling a model 
+reg_model_7 %>% compile(
+   loss = "mse",
+   optimizer =  optimizer_adagrad(), 
+   metrics = list("mean_absolute_error")
+ )
+ 
+reg_model_7 %>% summary()
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#fitting the model
+history.7 <- reg_model_7 %>% fit(trainR_set_x, trainR_set_y, 
+                    epochs = 200,verbose = 0,
+                    batch_size = 20,
+                    validation_split = 0.2)
+plot(history.7)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#evaluating the model against the train set
+scores_7 = reg_model_7 %>% evaluate(trainR_set_x, trainR_set_y)
+print(scores_7)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#evaluating the model against the validation set
+scores_7 = reg_model_7 %>% evaluate(validR_set_x, validR_set_y)
+print(scores_7)
+```
+
+### Conclusion
+
+In conclusion, our best performing model was the one with three hidden layers of 256, 128, 64 nodes. And this was also the model with batch regularization functions and weight regularization parameters and it was compiled with *Adam* optimizer. The epochs and batch sizes of this model were 200 and 20 respectively. 
+
+
+
+## Prediction.
+
+Finally, the best model was assessed against the test set and a mean absolute error and loss of **4.246** and **38.674** respectively were produced. The performance of the model was quite good as most of the values were closely predicted as shown in the table below.
+
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#evaluating the model against the test set
+scores_final = reg_model_7 %>% evaluate(testR_set_x, testR_set_y)
+print(scores_final)
+```
+
+```{r  echo=FALSE, warning=FALSE, include=FALSE}
+#predicting the target values of the test set
+final_predictions <- reg_model_7%>% predict(scale(testR_set_x))
+#data frame of predicted values
+final_predictions <- as.data.frame(final_predictions)
+
+Predicted <- final_predictions
+#actaul values
+Actual <- testR_set_y
+#combining the actual and predicted values
+final <- cbind(Predicted,Actual)
+
+colnames(final)[1] <- "Predicted"
+
+#rmse
+rmse <- sqrt(mean((final$Actual - final$Predicted)^2))
+rmse
+```
+
+\newpage
+
+```{r  echo=FALSE, warning=FALSE}
+#table of predicted values and actual values
+kableExtra::kable(head(final,10),caption = "Shows some of the predicted and the actual values obtained by the best model.")
+```
+
+After predictions, we calculated the overall Root Mean Square Error-RMSE (standard deviation of the residuals) and this was 7.035. This RMSE is relatively smaller, and therefore predictions of the model can be trusted.
+
+\newpage
+
+# Appendix 
+
+```{r  ref.label=knitr::all_labels(), echo=TRUE,eval=FALSE}
+
+```
+
+\newpage
+
+# References
