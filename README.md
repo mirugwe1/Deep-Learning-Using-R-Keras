@@ -26,3 +26,12 @@ git clone git@github.com:mirugwe1/Deep-Learning-Using-R-Keras.git
 install.packages(c("keras", "tensorflow"))
 ```
 
+
+## Data
+
+### Classification Data
+```
+data <- read.csv(url("https://protect-za.mimecast.com/s/LpPuCvgxAZflKY8PtQbJ9P"), header = FALSE, skip = 1) 
+```
+
+### Regression Data
