@@ -18,7 +18,7 @@ To get started with the assignment, follow the following steps:
 1. Clone this repository to your local machine using the following command:
 
 ```
-git clone https://github.com/your-username/keras-tensorflow-assignment.git
+git clone git@github.com:mirugwe1/Deep-Learning-Using-R-Keras.git
 ```
 
 2. Install the required dependencies by running the following command in RStudio:
