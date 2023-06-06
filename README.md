@@ -35,3 +35,6 @@ data <- read.csv(url("https://protect-za.mimecast.com/s/LpPuCvgxAZflKY8PtQbJ9P")
 ```
 
 ### Regression Data
+```
+data <- read.csv(url("https://protect-za.mimecast.com/s/vYKICAnX51iR2wOPiM4hPa"), header = TRUE) 
+```
